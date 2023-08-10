@@ -2,6 +2,7 @@
 
 <!-- vim-markdown-toc GFM -->
 
+* [Preparation: Setting up a Python Virtual Environment](#preparation-setting-up-a-python-virtual-environment)
 * [Installation](#installation)
 * [Example scripts](#example-scripts)
 
@@ -40,6 +41,18 @@ heavily from a wide set of existing libraries, including
 concepts, GTSAM has a
 [great set of tutorials](https://gtsam.org/tutorials/intro.html).
 
+
+### Preparation: Setting up a Python Virtual Environment
+
+Before installing the required packages, it's recommended to create a Python virtual environment. This helps avoid conflicts with other installed packages and allows for a clean workspace. To create a virtual environment:
+
+```bash
+git clone git@github.com:zczqwc0/COMP0132_Differentiable-filter-SLAM_2022-2023.git
+cd COMP0132_Differentiable-filter-SLAM_2022-2023/jaxfg
+python3 -m venv jaxfg_env
+source jaxfg_env/bin/activate
+```
+
 ### Installation
 
 `scikit-sparse` require SuiteSparse:
@@ -52,9 +65,9 @@ sudo apt install -y libsuitesparse-dev
 Then, from your environment of choice:
 
 ```bash
-git clone https://github.com/brentyi/jaxfg.git
-cd jaxfg
 pip install -e .
+pip install scikit-learn
+pip install tensorflow
 ```
 
 ### Example scripts
