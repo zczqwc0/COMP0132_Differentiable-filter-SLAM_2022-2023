@@ -61,7 +61,7 @@ def create_model():
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_normal', input_shape=(3,)),
         tf.keras.layers.Dense(32, activation='relu'),
-        tf.keras.layers.Dense(3) # Predicting the next state parameter (x, y, theta)
+        tf.keras.layers.Dense(3)
     ])
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
     model.compile(optimizer=optimizer, loss='mse')
