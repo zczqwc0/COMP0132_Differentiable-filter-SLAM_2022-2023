@@ -4,9 +4,11 @@ import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple
+import tensorflow as tf
 
 # Number of poses (steps in the simulation)
 num_step = 60
+step_size = 1
 
 # Create pose variables
 pose_variables = [jaxfg.geometry.SE2Variable() for _ in range(num_step)]
@@ -19,8 +21,6 @@ factors = [
         noise_model=jaxfg.noises.DiagonalGaussian(jnp.array([0.03, 0.03, 0.01])),
     )
 ]
-
-step_size = 1
 
 # Create between factors for each step
 for i in range(1, num_step):
@@ -140,7 +140,5 @@ plt.ylabel('y')
 plt.grid(True)
 plt.show()
 
-# print("All poses (still a jaxlie.SE2 object, but underlying parameters are stacked):")
-# print(solution_assignments.get_stacked_value(jaxfg.geometry.SE2Variable))
-# print()
+
 

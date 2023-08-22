@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def simulate_trajectory(current_state: jaxlie.SE2, speed: float, angular_velocity: float, delta_T: float) -> Tuple[jaxlie.SE2, jaxlie.SE2, jnp.array]:
+def simulate_trajectory(current_state: jaxlie.SE2, speed: float, angular_velocity: float, delta_T: float) -> Tuple[jaxlie.SE2, jnp.array]:
     """
     Simulates a single step of the robot's motion based on the process model.
 
@@ -48,41 +48,31 @@ def simulate_trajectory(current_state: jaxlie.SE2, speed: float, angular_velocit
     # Compute the difference between the current and actual new state to get the noise
     noise_vector = (current_state.inverse().multiply(noisy_state)).log()
 
-    # Noise-free state update
-    delta_state_noise_free = delta_T * jnp.dot(M, u_k)
-    T_delta_noise_free = jaxlie.SE2.exp(delta_state_noise_free)
-    ground_truth_state = current_state.multiply(T_delta_noise_free)
-
-    return ground_truth_state,noisy_state, noise_vector
+    return noisy_state, noise_vector
 
 
 def generate_data(num_steps: int, speed: float, angular_velocity: float, delta_T: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    relative_displacements, ground_truth_displacements, errors = [], [], []
+    relative_displacements, errors = [], []
     current_state = jaxlie.SE2.from_xy_theta(0.0, 0.0, 0.0)
     for _ in range(num_steps):
-        ground_truth_state, noisy_state, noise_vector = simulate_trajectory(current_state, speed, angular_velocity, delta_T)
+        noisy_state, noise_vector = simulate_trajectory(current_state, speed, angular_velocity, delta_T)
 
         # Calculate the relative displacement for noisy state
         displacement = current_state.inverse().multiply(noisy_state).log()
         relative_displacements.append(displacement)
-        
-        # Calculate the relative displacement for ground truth
-        gt_displacement = current_state.inverse().multiply(ground_truth_state).log()
-        ground_truth_displacements.append(gt_displacement)
 
         errors.append(noise_vector)
-        current_state = ground_truth_state
+        current_state = noisy_state
 
     return (
         np.vstack(relative_displacements),
-        np.vstack(ground_truth_displacements),
         np.vstack(errors)
     )
 def custom_loss(y_true, y_pred):
     mse = tf.reduce_mean(tf.square(y_true - y_pred))
+    # variance_penalty: Ensure that the predicted errors have a standard deviation close to 1
     variance_penalty = tf.square(tf.math.reduce_std(y_pred) - 1.0)
     return mse + variance_penalty
-
 
 def create_model():
     model = tf.keras.Sequential([
@@ -110,7 +100,7 @@ def plot_noises(actual_noises, predicted_noises):
 def main():
     
     # Assuming the error e to be Gaussian distributed with zero mean and unit covariance matrix
-    # Since Σ is the identity matrix, only need to minmize e'e
+    # Since Σ is the identity matrix, only need to minimise e'e
     
     # Define speed, angular_velocity, and delta_T
     speed = 1.0  
@@ -118,15 +108,11 @@ def main():
     delta_T = 1.0  
 
     # Generate Data
-    X_noisy, X_ground_truth, y = generate_data(num_steps=10000, speed=speed, angular_velocity=angular_velocity, delta_T=delta_T)   
+    X_noisy, y = generate_data(num_steps=6000, speed=speed, angular_velocity=angular_velocity, delta_T=delta_T)   
 
     # Split Data randomly, training, validation, and test sets with the ratio 8:1:1
     X_train, X_temp, y_train, y_temp = train_test_split(X_noisy, y, test_size=0.2, random_state=42)
     X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
-
-    # Splitting the ground truth data
-    X_train_gt, X_temp_gt = train_test_split(X_ground_truth, test_size=0.2, random_state=42)
-    X_val_gt, X_test_gt = train_test_split(X_temp_gt, test_size=0.5, random_state=42)
 
     # Train Model
     model = create_model()
@@ -135,13 +121,6 @@ def main():
     
     # Evaluate Model
     print(f'Test Loss: {model.evaluate(X_test, y_test)}')
-
-    # Compute the error e and e^T e
-    e = y_test - model.predict(X_test)
-    eTe = np.sum(e**2, axis=1)
-    print("Average e^T e:", np.mean(eTe))
-
-    
     
     # The values in "difference" are close to zero, especially for off-diagonal elements,
     # it indicates that the covariance matrix is close to the identity matrix.
@@ -153,20 +132,11 @@ def main():
     identity_matrix = np.identity(cov_matrix.shape[0])
     difference = np.abs(cov_matrix - identity_matrix)
     print("Difference from identity matrix:\n", difference)
-    
-    # Compute the estimated state by subtracting the predicted errors from the noisy measurements
-    estimated_states = X_test - predicted_errors
-    # Compute the squared differences between the true state and the estimated state
-    squared_differences = np.sum((estimated_states - X_test_gt)**2, axis=1)
 
-    # Compute the MSE
-    mse = np.mean(squared_differences)
-    print("MSE between the mean of the belief and true state:", mse)
-
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cov_matrix, annot=True, cmap='coolwarm', vmin=0, vmax=1)
-    plt.title("Sample Covariance Matrix of Predicted Errors")
-    plt.show()
+    # plt.figure(figsize=(8, 6))
+    # sns.heatmap(cov_matrix, annot=True, cmap='coolwarm', vmin=0, vmax=1)
+    # plt.title("Sample Covariance Matrix of Predicted Errors")
+    # plt.show()
 
 if __name__ == '__main__':
     main()

@@ -6,39 +6,100 @@ import matplotlib.pyplot as plt
 from typing import Tuple, List, Dict
 
 from learn_process_noise import LearnedProcessNoise
-from Learned_factor import simulate_ground_truth_trajectory
 
 # Constants
 
-# the trajectory optimization performs well when there are a sufficient number of steps (e.g., 120~140) 
-# but fails to converge to a reasonable solution with fewer steps, and from the plot of the final path, 
-# we can find out that when number of step has a remainder of 0 when divided by 20,, this would give the optimization 
-# a strong constraint to refine the entire trajectory due to the loop closure which is set every 20 steps the robot
-# will return back to origin. For trajectories with a number of steps not divisble by 20, the optimization would be 
-# missing this final loop closure. As a result, any drift accumulated during the trajectory would reamin uncorrected,
-# leading to a worse result, especially when the number of steps is close to the number that is divisble by 20. 
-
-NUM_STEP = 140
+NUM_STEP = 200
 STEP_SIZE = 1
 
-def generate_square_trajectory_data(num_steps: int, step_size: float) -> Tuple[np.ndarray, np.ndarray]:
+
+def processModel(current_state: jaxlie.SE2, u_k: jnp.array, delta_T: float) -> Tuple[jaxlie.SE2, jnp.array]:
+    """
+    Simulates a single step of the robot's motion based on the process model.
+
+    Args:
+        current_state: Current state of the robot as a jaxlie.SE2 object.
+        speed: Speed of the vehicle.
+        angular_velocity: Angular velocity of the vehicle.
+        delta_T: Length of the prediction interval.
+        
+    Returns:
+        ground_truth_state: Ground truth state of the robot after applying the process model input and noise.
+        noise: Noise added to the process_model input as a jnp.array.
+    """
+
+    # The process noise vk​ is zero mean, Gaussian, and additive on all three dimensions.
+    # Define noise standard deviation
+    noise_std = jnp.array([0.003, 0.003, 0.001])
+    # Generate noise from a normal distribution
+    noise = jnp.array([np.random.normal(0, std) for std in noise_std])
+    
+    # Control input
+    u_k = jnp.array([u_k[0], u_k[1], u_k[2]])
+
+    # Rotation matrix M(psi)
+    theta = current_state.rotation().log()[0]
+    M = jnp.array([[jnp.cos(theta), -jnp.sin(theta), 0],
+                   [jnp.sin(theta), jnp.cos(theta), 0],
+                   [0, 0, 1]])
+    print (M)
+
+    # State update
+    delta_state = delta_T * jnp.dot(M, (u_k + noise))
+    T_delta = jaxlie.SE2.exp(delta_state)
+
+    # Predicted new state
+    noisy_state = current_state.multiply(T_delta)
+
+    noise_vector = (current_state.inverse().multiply(noisy_state)).log()
+    print (noisy_state, noise_vector)
+    return noisy_state, noise_vector
+
+def generate_square_trajectory_data(delta_T: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
+    
+    L = 4  # Desired side length of the square
+    speed = L / (4 * delta_T)  # Calculated speed based on desired side length and delta_T
     
     relative_displacements, errors = [], []
     current_state = jaxlie.SE2.from_xy_theta(0.0, 0.0, 0.0)
     
-    for i in range(num_steps):
-        if i % 5 == 0 and i != 0:
-            T = jaxlie.SE2.from_xy_theta(0, 0.0, np.pi / 2)
+    for i in range(1, NUM_STEP):
+        # If i is a multiple of 5, only rotate
+        if i % 5 == 0:
+            speed = 0.0
+            angular_velocity = np.pi / 2
+            u_k = jnp.array([0, 0, angular_velocity])
         else:
-            T = jaxlie.SE2.from_xy_theta(step_size, 0.0, 0.0)
+            # Determine the current segment of the trajectory
+            segment = (i-1) // 5 % 4
 
-        ground_truth_state, noise_vector  = simulate_ground_truth_trajectory(current_state, T)
+            if segment == 0:  # Steps 1-4
+                speed = 1.0
+                angular_velocity = 0.0
+                u_k = jnp.array([speed, 0, angular_velocity])
+            elif segment == 1:  # Steps 6-9
+                speed = 1.0
+                angular_velocity = 0.0
+                u_k = jnp.array([0, -speed, angular_velocity])
+            elif segment == 2:  # Steps 11-14
+                speed = 1.0
+                angular_velocity = 0.0
+                u_k = jnp.array([-speed, 0, angular_velocity])
+            elif segment == 3:  # Steps 16-19
+                speed = 1.0
+                angular_velocity = 0.0
+                u_k = jnp.array([0, speed, angular_velocity])
+
+
+        print(i)
+        print(u_k)
+        noisy_state, noise_vector  = processModel(current_state, u_k, delta_T)
         
-        displacement = current_state.inverse().multiply(ground_truth_state).log()
+        displacement = current_state.inverse().multiply(noisy_state).log()
         relative_displacements.append(displacement)
         
         errors.append(noise_vector)
-        current_state = ground_truth_state
+        current_state = noisy_state
 
     return (
         np.vstack(relative_displacements),
@@ -66,16 +127,19 @@ def initialize_pose_and_factors(learned_noise_model: LearnedProcessNoise) -> Tup
         predicted_noise = jnp.squeeze(predicted_noise) 
         T_with_noise = T.multiply(jaxlie.SE2.exp(predicted_noise))
 
+        # Using identity covariance for the predicted process noise
+        noise_model = jaxfg.noises.DiagonalGaussian(jnp.array([1,1,1]))
         
         factors.append(
             jaxfg.geometry.BetweenFactor.make(
                 variable_T_world_a=pose_variables[i-1],
                 variable_T_world_b=pose_variables[i],
                 T_a_b=T_with_noise,
-                noise_model=jaxfg.noises.DiagonalGaussian(predicted_noise),
+                noise_model=noise_model,
             )
         )
 
+        # Add a loop closure factor every 20 steps
         if i % 20 == 0:
             T_closure = jaxlie.SE2.identity()
             factors.append(
@@ -143,7 +207,7 @@ def main():
     learned_noise = LearnedProcessNoise()
 
     # Generate your training data based on the square trajectory
-    X, y = generate_square_trajectory_data(NUM_STEP, STEP_SIZE)
+    X, y = generate_square_trajectory_data()
     learned_noise.train(X, y)
     learned_noise.save('Dataset of learned process noise')
 
