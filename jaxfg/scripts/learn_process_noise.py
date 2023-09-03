@@ -1,54 +1,65 @@
-import jaxlie
-import jax.numpy as jnp
-import numpy as np
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
+import numpy as np
 
-class LearnedProcessNoise:
+class NoiseAutoencoder:
     def __init__(self):
-        self.model = self.create_model()
+        self.encoder = self.create_encoder()
+        self.autoencoder = self.create_model()
+
+    def compute_covariance(self, noise):
+        noise_mean = tf.reduce_mean(noise, axis=0, keepdims=True)
+        noise_centered = noise - noise_mean
+        covariance_matrix = tf.matmul(noise_centered, noise_centered, transpose_a=True) / tf.cast(tf.shape(noise)[0], tf.float32)
+        return covariance_matrix
 
     def custom_loss(self, y_true, y_pred):
-        mse = tf.reduce_mean(tf.square(y_true - y_pred))
-        # variance_penalty: Ensure that the predicted errors have a standard deviation close to 1
-        variance_penalty = tf.square(tf.math.reduce_std(y_pred) - 1.0)
-        return mse + variance_penalty
+    # Covariance matrix of the predicted values (noise)
+        noise = y_pred
+        covariance_matrix = self.compute_covariance(noise)
+        
+        # Special diagonal matrix
+        average_diagonal_value = tf.reduce_mean(tf.linalg.diag_part(covariance_matrix))
+        special_diagonal = tf.eye(noise.shape[-1]) * average_diagonal_value
+        
+        # Loss based on the difference between the covariance matrix and the special diagonal matrix
+        matrix_diff = covariance_matrix - special_diagonal
+        covariance_loss = tf.norm(matrix_diff, ord='fro', axis=[-1, -2])
+        
+        return covariance_loss
 
-    def create_model(self):
+    def create_encoder(self):
         model = tf.keras.Sequential([
-            tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_normal', input_shape=(3,)),
+            tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_normal', input_shape=(9,)),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dense(32, activation='relu'),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dense(3)
         ])
+        return model
+
+    
+    def create_model(self):
+        encoder = self.create_encoder()
+        model = tf.keras.Sequential([encoder])
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
         model.compile(optimizer=optimizer, loss=self.custom_loss)
         return model
 
-    def train(self, X, y, epochs=50, test_size=0.2):
-        X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=test_size, random_state=42)
-        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
-        
-        X_train = np.array(X_train)
-        y_train = np.array(y_train)
-        X_val = np.array(X_val)
-        y_val = np.array(y_val)
-        X_test = np.array(X_test)
-        y_test = np.array(y_test)
 
-        self.model.fit(X_train, y_train, epochs=epochs, validation_data=(X_val, y_val))
-        test_loss = self.model.evaluate(X_test, y_test)
-        print(f'Test Loss: {test_loss}')
+    def train(self, X, epochs=50, test_size=0.2):
+        X_train, X_test = train_test_split(X, test_size=test_size, random_state=42)
+        self.autoencoder.fit(X_train, X_train, epochs=epochs, validation_data=(X_test, X_test))
 
 
-    def predict_noise(self, displacement):
-        displacement = np.array(displacement) 
-        return self.model.predict(displacement.reshape(1, -1))
+    def predict_noise(self, data):
+        data = np.array(data)
+        return self.autoencoder.predict(data)
+
 
     def save(self, path):
-        self.model.save(path)
+        self.autoencoder.save(path)
         print('Model saved.')
 
     def load(self, path):
-        self.model = tf.keras.models.load_model(path)
+        self.autoencoder = tf.keras.models.load_model(path, custom_objects={'custom_loss': self.custom_loss})
