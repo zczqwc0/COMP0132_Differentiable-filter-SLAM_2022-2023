@@ -3,16 +3,19 @@ import jaxfg
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Tuple, List, Dict
+from typing import Tuple, List
 import pandas as pd
 from io import StringIO
+import os
+import csv
 
 from learn_process_noise import NoiseAutoencoder
+from ground_truth import GroundTruthTrajectory
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 # Constants
-
-NUM_STEP = 1000
+NUM_STEP = 50
 STEP_SIZE = 1
-
 
 def processModel(input_current_state: jaxlie.SE2, u_k: jnp.array, noise: jnp.array, delta_T: float) -> Tuple[jaxlie.SE2, jaxlie.SE2, jnp.array, jnp.array]:
     """
@@ -45,8 +48,6 @@ def processModel(input_current_state: jaxlie.SE2, u_k: jnp.array, noise: jnp.arr
     noisy_state = current_state.multiply(T_delta)
     
     return current_state, noisy_state, u_k, noise
-
-
 
 def generate_square_trajectory_data(input_current_state: jaxlie.SE2, input_u_k: jnp.array, input_noise: jnp.array, delta_T = 1) -> None:
     
@@ -102,10 +103,9 @@ def generate_square_trajectory_data(input_current_state: jaxlie.SE2, input_u_k: 
         np.savetxt(file, data, delimiter=',', header=header, footer=end, comments='')
     return
 
-
 def initialize_pose_and_factors(learned_noise_model: NoiseAutoencoder) -> Tuple[List, List]:
 
-    current_state = jaxlie.SE2.from_xy_theta(0, 0.0, np.pi / 2)
+    current_state = jaxlie.SE2.from_xy_theta(0, 0.0, 0.0)
     input_noise = jnp.array([0.01,0.01,0.01])
     noise_model = jaxfg.noises.DiagonalGaussian(input_noise)
     delta_T  = 1
@@ -157,7 +157,6 @@ def initialize_pose_and_factors(learned_noise_model: NoiseAutoencoder) -> Tuple[
 
         # Using identity covariance for the predicted process noise
 
-        
         factors.append(
             jaxfg.geometry.BetweenFactor.make(
                 variable_T_world_a=pose_variables[i-1],
@@ -206,8 +205,8 @@ def initialize_assignments(pose_variables: List[jaxfg.geometry.SE2Variable]) -> 
 
     return jaxfg.core.VariableAssignments.make_from_dict(initial_assignments_dict)
 
-def print_poses(assignment: jaxfg.core.VariableAssignments, pose_variables: List[jaxfg.geometry.SE2Variable]):
-    
+def save_poses_to_csv(assignment: jaxfg.core.VariableAssignments, pose_variables: List[jaxfg.geometry.SE2Variable], filename: str = "learned_process_noise_trajectory.csv"):
+    csv_data = []
     for i, variable in enumerate(pose_variables):
         pose = assignment.get_value(variable)
         translation = pose.translation()
@@ -218,20 +217,33 @@ def print_poses(assignment: jaxfg.core.VariableAssignments, pose_variables: List
         print(f"Translation: {translation}")
         print(f"Rotation angle in degrees: {angle_deg}\n")
 
+        csv_data.append([i, translation[0], translation[1], angle_deg])
+
+    directory = "./scripts/Data/"  # The path can be adjusted based on your needs
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    # Write to CSV
+    csv_file_path = os.path.join(directory, filename)
+    with open(csv_file_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Pose Index", "X", "Y", "Rotation (Degrees)"])  # Writing the headers
+        writer.writerows(csv_data)
+
 def plot_final_path(solution_assignments: jaxfg.core.VariableAssignments, pose_variables: List[jaxfg.geometry.SE2Variable]):
     
     x_coordinates = [solution_assignments.get_value(variable).translation()[0] for variable in pose_variables]
     y_coordinates = [solution_assignments.get_value(variable).translation()[1] for variable in pose_variables]
 
     plt.plot(x_coordinates, y_coordinates, 'o-', markersize=5)
-    plt.title('Final path of the robot')
+    plt.title('The trajectory with learned process noise')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.grid(True)
     plt.show()
 
-
 def read_file(file_path):
+
     # Lists to hold data lines and columns
     data_lines = []
     header = 'current_state_position_x,current_state_position_y,current_state_angle,noisy_state_position_x,noisy_state_position_y,noisy_state_angle,control_input_x,control_input_y,control_input_angle,noise_x,noise_y,noise_angle'
@@ -254,17 +266,64 @@ def read_file(file_path):
     
     return df
 
+def analyze_differences():
+    # Read both CSV files into dataframes
+    ground_truth_df = pd.read_csv('./scripts/Data/ground_truth_trajectory.csv')
+    noise_df = pd.read_csv('./scripts/Data/learned_process_noise_trajectory.csv')
 
+    # Ensure that the two dataframes have the same size
+    assert len(ground_truth_df) == len(noise_df), "Dataframes have different lengths"
+
+    # Calculate the differences between ground truth and noise for X, Y, and Rotation
+    diff_df = ground_truth_df[['X', 'Y', 'Rotation (Degrees)']] - noise_df[['X', 'Y', 'Rotation (Degrees)']]
+
+    # Plot the differences
+    fig, ax = plt.subplots(3, 1, figsize=(12, 12))
+
+    # Differences in X
+    ax[0].plot(diff_df['X'], label='Difference in X', color='blue')
+    ax[0].set_title('Difference in X Coordinate')
+    ax[0].set_xlabel('Pose Index')
+    ax[0].set_ylabel('Difference')
+    ax[0].grid(True)
+    ax[0].legend()
+
+    # Differences in Y
+    ax[1].plot(diff_df['Y'], label='Difference in Y', color='green')
+    ax[1].set_title('Difference in Y Coordinate')
+    ax[1].set_xlabel('Pose Index')
+    ax[1].set_ylabel('Difference')
+    ax[1].grid(True)
+    ax[1].legend()
+
+    # Differences in Rotation
+    ax[2].plot(diff_df['Rotation (Degrees)'], label='Difference in Rotation', color='red')
+    ax[2].set_title('Difference in Rotation (Degrees)')
+    ax[2].set_xlabel('Pose Index')
+    ax[2].set_ylabel('Difference')
+    ax[2].grid(True)
+    ax[2].legend()
+
+    plt.tight_layout()
+    plt.show()
 
 def main():
-    input_current_state_array = jnp.array([0.01, 0.002, 0])
+    
+    # Initialize the input variables
+    input_current_state_array = jnp.array([0.0, 0.0, 0.0])
     input_current_state = jaxlie.SE2.from_xy_theta(input_current_state_array[0], input_current_state_array[1], input_current_state_array[2])
     input_u_k = jnp.array([1, 0, 1])    
-    input_noise = jnp.array([0.02, 0.01, 0.03])
-    delta_T = 1
+    input_noise = jnp.array([0.13, 0.02, 0.03])
+    delta_T = 1 # Length of the prediction interval assumed fixed
+    
+    # Initialize the ground truth trajectory
+    ground_truth = GroundTruthTrajectory(num_step=50)
+    ground_truth.run()
+    
+    # Generate the training data
     generate_square_trajectory_data(input_current_state, input_u_k, input_noise, delta_T)
     df = read_file('data.csv')
-    print(df.shape)
+    print("Dataset shape:",df.shape)
     # Initialize the LearnedProcessNoise class
     learned_noise = NoiseAutoencoder()
     learned_noise.train(df)
@@ -277,17 +336,21 @@ def main():
     # Create an initial guess for the poses
     initial_assignments = initialize_assignments(pose_variables)
 
-    # Print initial guess
-    print("Initial assignments:")
-    print_poses(initial_assignments, pose_variables)
-
     # Solve the factor graph
     solution_assignments = graph.solve(initial_assignments)
 
     # Print and visualize the results
-    print("Final poses:")
-    print_poses(solution_assignments, pose_variables)
+    print("Saving final poses to CSV:")
+    save_poses_to_csv(solution_assignments, pose_variables)
     plot_final_path(solution_assignments, pose_variables)
+
+
+    # Analyze the differences between the ground truth and the learned process noise
+    print("Analyzing differences between ground truth and learned process noise:")
+    analyze_differences()
+
 
 if __name__ == "__main__":
     main()
+
+

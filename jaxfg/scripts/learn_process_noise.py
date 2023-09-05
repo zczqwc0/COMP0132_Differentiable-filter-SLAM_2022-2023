@@ -51,7 +51,6 @@ class NoiseAutoencoder:
         X_train, X_test = train_test_split(X, test_size=test_size, random_state=42)
         self.autoencoder.fit(X_train, X_train, epochs=epochs, validation_data=(X_test, X_test))
 
-
     def predict_noise(self, data):
         data = np.array(data)
         return self.autoencoder.predict(data)
