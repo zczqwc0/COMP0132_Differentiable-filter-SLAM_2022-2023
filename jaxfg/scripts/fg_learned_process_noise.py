@@ -11,7 +11,6 @@ import csv
 
 from learn_process_noise import NoiseAutoencoder
 from ground_truth import GroundTruthTrajectory
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # Constants
 NUM_STEP = 50
@@ -98,7 +97,7 @@ def generate_square_trajectory_data(input_current_state: jaxlie.SE2, input_u_k: 
 
     header = 'current_state_position_x,current_state_position_y,current_state_angle,noisy_state_position_x,noisy_state_position_y,noisy_state_angle,control_input_x,control_input_y,control_input_angle,noise_x,noise_y,noise_angle'
     end = 'end'
-    file_path = 'data.csv'
+    file_path = './scripts/Data/training_dataset.csv'
     with open(file_path, 'a') as file:
         np.savetxt(file, data, delimiter=',', header=header, footer=end, comments='')
     return
@@ -322,7 +321,7 @@ def main():
     
     # Generate the training data
     generate_square_trajectory_data(input_current_state, input_u_k, input_noise, delta_T)
-    df = read_file('data.csv')
+    df = read_file('./scripts/Data/training_dataset.csv')
     print("Dataset shape:",df.shape)
     # Initialize the LearnedProcessNoise class
     learned_noise = NoiseAutoencoder()

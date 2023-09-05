@@ -3,8 +3,6 @@ import jaxfg
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import csv
 
 
 # Number of poses (steps in the simulation)
@@ -128,7 +126,6 @@ for i, variable in enumerate(pose_variables):
 
 
 # Plot the 2D planer drive bot simulation
-
 # Extract the x and y coordinates of each pose
 x_coordinates = [solution_assignments.get_value(variable).translation()[0] for variable in pose_variables]
 y_coordinates = [solution_assignments.get_value(variable).translation()[1] for variable in pose_variables]
@@ -142,25 +139,5 @@ plt.grid(True)
 plt.show()
 
 
-# Ensure directory exists
-directory = "./scripts/Data/"
-if not os.path.exists(directory):
-    os.makedirs(directory)
-
-# Prepare data for CSV
-csv_data = []
-for i, variable in enumerate(pose_variables):
-    pose = solution_assignments.get_value(variable)
-    translation = pose.translation()
-    rotation = pose.rotation().as_radians()
-    angle_deg = np.degrees(rotation)
-    csv_data.append([i, translation[0], translation[1], angle_deg])
-
-# Write to CSV
-csv_file_path = os.path.join(directory, 'ground_truth_trajectory.csv')
-with open(csv_file_path, 'w', newline='') as file:
-    writer = csv.writer(file)
-    writer.writerow(["Pose Index", "X", "Y", "Rotation (Degrees)"])  # Writing the headers
-    writer.writerows(csv_data)
 
 
