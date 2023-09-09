@@ -3,6 +3,7 @@ import jaxfg
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
 from typing import Tuple, List
 import pandas as pd
 from io import StringIO
@@ -13,7 +14,7 @@ from learn_process_noise import NoiseAutoencoder
 from ground_truth import GroundTruthTrajectory
 
 # Constants
-NUM_STEP = 50
+NUM_STEP = 1000
 STEP_SIZE = 1
 
 def processModel(input_current_state: jaxlie.SE2, u_k: jnp.array, noise: jnp.array, delta_T: float) -> Tuple[jaxlie.SE2, jaxlie.SE2, jnp.array, jnp.array]:
@@ -97,7 +98,7 @@ def generate_square_trajectory_data(input_current_state: jaxlie.SE2, input_u_k: 
 
     header = 'current_state_position_x,current_state_position_y,current_state_angle,noisy_state_position_x,noisy_state_position_y,noisy_state_angle,control_input_x,control_input_y,control_input_angle,noise_x,noise_y,noise_angle'
     end = 'end'
-    file_path = './scripts/Data/training_dataset.csv'
+    file_path = './scripts/Data/fc_training_dataset.csv'
     with open(file_path, 'a') as file:
         np.savetxt(file, data, delimiter=',', header=header, footer=end, comments='')
     return
@@ -204,7 +205,7 @@ def initialize_assignments(pose_variables: List[jaxfg.geometry.SE2Variable]) -> 
 
     return jaxfg.core.VariableAssignments.make_from_dict(initial_assignments_dict)
 
-def save_poses_to_csv(assignment: jaxfg.core.VariableAssignments, pose_variables: List[jaxfg.geometry.SE2Variable], filename: str = "learned_process_noise_trajectory.csv"):
+def save_poses_to_csv(assignment: jaxfg.core.VariableAssignments, pose_variables: List[jaxfg.geometry.SE2Variable], filename: str = "fc_learned_process_noise_trajectory.csv"):
     csv_data = []
     for i, variable in enumerate(pose_variables):
         pose = assignment.get_value(variable)
@@ -268,7 +269,7 @@ def read_file(file_path):
 def analyze_differences():
     # Read both CSV files into dataframes
     ground_truth_df = pd.read_csv('./scripts/Data/ground_truth_trajectory.csv')
-    noise_df = pd.read_csv('./scripts/Data/learned_process_noise_trajectory.csv')
+    noise_df = pd.read_csv('./scripts/Data/fc_learned_process_noise_trajectory.csv')
 
     # Ensure that the two dataframes have the same size
     assert len(ground_truth_df) == len(noise_df), "Dataframes have different lengths"
@@ -276,11 +277,20 @@ def analyze_differences():
     # Calculate the differences between ground truth and noise for X, Y, and Rotation
     diff_df = ground_truth_df[['X', 'Y', 'Rotation (Degrees)']] - noise_df[['X', 'Y', 'Rotation (Degrees)']]
 
+    # Save the differences to CSV
+    diff_df.to_csv('./scripts/Data/differences_trajectory_with_loop_closure.csv', index=False)
+
+    # Compute the tick positions
+    num_timesteps = len(diff_df)
+    x_tick_positions = np.arange(0, num_timesteps + 1, 40)  # Generate tick positions spaced by 20
+
     # Plot the differences
     fig, ax = plt.subplots(3, 1, figsize=(12, 12))
 
     # Differences in X
     ax[0].plot(diff_df['X'], label='Difference in X', color='blue')
+    ax[0].set_xticks(x_tick_positions)
+    ax[0].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
     ax[0].set_title('Difference in X Coordinate')
     ax[0].set_xlabel('Pose Index')
     ax[0].set_ylabel('Difference')
@@ -289,6 +299,8 @@ def analyze_differences():
 
     # Differences in Y
     ax[1].plot(diff_df['Y'], label='Difference in Y', color='green')
+    ax[1].set_xticks(x_tick_positions)
+    ax[1].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
     ax[1].set_title('Difference in Y Coordinate')
     ax[1].set_xlabel('Pose Index')
     ax[1].set_ylabel('Difference')
@@ -297,6 +309,7 @@ def analyze_differences():
 
     # Differences in Rotation
     ax[2].plot(diff_df['Rotation (Degrees)'], label='Difference in Rotation', color='red')
+    ax[2].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
     ax[2].set_title('Difference in Rotation (Degrees)')
     ax[2].set_xlabel('Pose Index')
     ax[2].set_ylabel('Difference')
@@ -306,27 +319,28 @@ def analyze_differences():
     plt.tight_layout()
     plt.show()
 
+
 def main():
     
-    # Initialize the input variables
-    input_current_state_array = jnp.array([0.0, 0.0, 0.0])
+    # Initialize the input variables for collecting various training data
+    input_current_state_array = jnp.array([0.2, 0.15, 0.09])
     input_current_state = jaxlie.SE2.from_xy_theta(input_current_state_array[0], input_current_state_array[1], input_current_state_array[2])
     input_u_k = jnp.array([1, 0, 1])    
-    input_noise = jnp.array([0.13, 0.02, 0.03])
+    input_noise = jnp.array([0.11, 0.14, 0.12])
     delta_T = 1 # Length of the prediction interval assumed fixed
     
     # Initialize the ground truth trajectory
-    ground_truth = GroundTruthTrajectory(num_step=50)
+    ground_truth = GroundTruthTrajectory(num_step=1000)
     ground_truth.run()
     
     # Generate the training data
     generate_square_trajectory_data(input_current_state, input_u_k, input_noise, delta_T)
-    df = read_file('./scripts/Data/training_dataset.csv')
+    df = read_file('./scripts/Data/fc_training_dataset.csv')
     print("Dataset shape:",df.shape)
     # Initialize the LearnedProcessNoise class
     learned_noise = NoiseAutoencoder()
     learned_noise.train(df)
-    learned_noise.save('Dataset of learned process noise')
+    learned_noise.save('./scripts/Data/fc Dataset of learned process noise')
 
     # Initialize pose variables and factors
     pose_variables, factors = initialize_pose_and_factors(learned_noise)

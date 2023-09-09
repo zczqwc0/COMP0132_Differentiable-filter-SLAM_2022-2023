@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 
 # Number of poses (steps in the simulation)
-num_step = 1000
+num_step = 10000
 step_size = 1
 
 # Create pose variables
@@ -17,7 +17,7 @@ factors = [
     jaxfg.geometry.PriorFactor.make(
         variable=pose_variables[0],
         mu=jaxlie.SE2.from_xy_theta(0.0, 0.0, 0.0),  # Start at the origin
-        noise_model=jaxfg.noises.DiagonalGaussian(jnp.array([0.01, 0.01, 0.01])),
+        noise_model=jaxfg.noises.DiagonalGaussian(jnp.array([0.0, 0.0, 0.0])),
     )
 ]
 
@@ -31,7 +31,7 @@ for i in range(1, num_step):
         T = jaxlie.SE2.from_xy_theta(step_size, 0.0, 0.0)
 
     # Add noise to the motion
-    noise = jnp.array([np.random.normal(0, 0.01), np.random.normal(0, 0.01), np.random.normal(0, 0.01)])
+    noise = jnp.array([np.random.normal(0, 0.0), np.random.normal(0, 0.0), np.random.normal(0, 0.0)])
     T_noise = jaxlie.SE2.from_xy_theta(*T.translation() + noise[:2], T.rotation().as_radians() + noise[2])
 
 
@@ -40,7 +40,7 @@ for i in range(1, num_step):
             variable_T_world_a=pose_variables[i-1],
             variable_T_world_b=pose_variables[i],
             T_a_b= T_noise,
-            noise_model=jaxfg.noises.DiagonalGaussian(jnp.array([0.01, 0.01, 0.01])),
+            noise_model=jaxfg.noises.DiagonalGaussian(jnp.array([0.0, 0.0, 0.0])),
         )
     )
 
@@ -52,7 +52,7 @@ for i in range(1, num_step):
                 variable_T_world_a = pose_variables[0],  # Always close the loop to the first pose
                 variable_T_world_b = pose_variables[i],
                 T_a_b = T_closure,
-                noise_model = jaxfg.noises.DiagonalGaussian(jnp.array([0.01, 0.01, 0.01])),
+                noise_model = jaxfg.noises.DiagonalGaussian(jnp.array([0.0, 0.0, 0.0])),
             )
         )
 

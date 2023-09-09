@@ -28,6 +28,8 @@ class NoiseAutoencoder:
         
         return covariance_loss
 
+    
+        # Encoder with dense layers (Fully connected)
     def create_encoder(self):
         model = tf.keras.Sequential([
             tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_normal', input_shape=(9,)),
@@ -37,8 +39,20 @@ class NoiseAutoencoder:
             tf.keras.layers.Dense(3)
         ])
         return model
-
     
+        # Encoder with 1D convolution
+    # def create_encoder(self):
+    #     model = tf.keras.Sequential([
+    #         tf.keras.layers.Reshape((9, 1), input_shape=(9,)),  # Reshape for 1D convolution
+    #         tf.keras.layers.Conv1D(32, 3, activation='relu', padding='same'),
+    #         tf.keras.layers.BatchNormalization(),
+    #         tf.keras.layers.Conv1D(16, 3, activation='relu', padding='same'),
+    #         tf.keras.layers.BatchNormalization(),
+    #         tf.keras.layers.Flatten(),
+    #         tf.keras.layers.Dense(3)
+    #     ])
+    #     return model  
+
     def create_model(self):
         encoder = self.create_encoder()
         model = tf.keras.Sequential([encoder])
