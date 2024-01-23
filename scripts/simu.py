@@ -25,11 +25,12 @@ def normalize_theta(theta):
         theta -= 2 * np.pi
     return theta
 
-def save_to_csv(filename, poses, covariances, control_inputs):
-    with open(filename, 'w', newline='') as csvfile:
+def save_to_csv(filename, poses, covariances, control_inputs, write_header):
+    with open(filename, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
-        writer.writerow(['Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'X', 'Y', 'Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta'])
+        if write_header : 
+            writer.writerow(['Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_displacement_x', 'relative_displacement_x', 'relative_displacement_theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta'])
         # Write data
         for step, (pose, covariance, control_inputs) in enumerate(zip(poses, covariances, control_inputs)):
             # Format covariance values with 4 decimal places
@@ -48,9 +49,9 @@ def dynamic_model(x_k, psi_k, u_k, v_k):
     return d
 
 # Observation model function
-def observation_model(x_i, y_i, x_k, y_k, phi_k):
-    r_k_i = np.sqrt((x_i - x_k)**2 + (y_i - y_k)**2)
-    beta_k_i = np.arctan2((y_i - y_k), (x_i - x_k)) - phi_k
+def observation_model(x_i, y_i, x_k, y_k, phi_k, R_std_dev):
+    r_k_i = np.sqrt((x_i - x_k)**2 + (y_i - y_k)**2)+ np.random.normal(0, R_std_dev[0])
+    beta_k_i = np.arctan2((y_i - y_k), (x_i - x_k)) - phi_k+ np.random.normal(0, R_std_dev[1])
     return np.array([r_k_i, beta_k_i])
 
 def loop_closures_detection(poses, tolerance= 0.05):
@@ -70,49 +71,6 @@ def save_loop_closures_to_csv(loop_closures, filename):
         for loop_closure in loop_closures:
             writer.writerow(loop_closure)
 
-# Visualization parameters
-num_steps = 500
-num_landmarks = 10  # Number of landmarks
-
-# Define maximum x and y for landmark scatter
-max_x = 8
-max_y = 8
-
-# Generate random initial values for phi and angular velocity
-initial_phi = np.random.uniform(0, 2 * np.pi)
-angular_velocity = np.random.uniform(0.05, 0.2)
-
-x_k = np.array([0, 0, initial_phi])
-trajectory = [x_k.copy()]  # Initialize with a copy of the initial state
-
-# Save the current state of the random number generator
-rng_state = np.random.get_state()
-# Set a seed for reproducibility of landmark positions only
-np.random.seed(42)
-# Generate N fixed landmarks throughout the trajectory within the specified limits
-landmarks = np.random.uniform(low=-max_x, high=max_x, size=(num_landmarks, 1))
-landmarks = np.hstack([landmarks, np.random.uniform(low=-max_y, high=max_y, size=(num_landmarks, 1))])
-# Restore the previous state of the random number generator
-np.random.set_state(rng_state)
-
-# Create figure and axes
-fig, ax = plt.subplots(figsize=(8, 8))
-ax.set_title('Robot Movement Over Time with Landmarks and Distances')
-ax.set_xlabel('X-axis')
-ax.set_ylabel('Y-axis')
-ax.grid(True)
-
-# Plot initial state
-line, = ax.plot(trajectory[0][0], trajectory[0][1], label='Robot Trajectory', marker='o')
-scatter_landmarks = ax.scatter(landmarks[:, 0], landmarks[:, 1], color='red', marker='*', label='Landmarks')
-
-# Set initial axis limits
-min_x, max_x = np.min(landmarks[:, 0]), np.max(landmarks[:, 0])
-min_y, max_y = np.min(landmarks[:, 1]), np.max(landmarks[:, 1])
-ax.set_xlim(min_x - 5, max_x + 5)
-ax.set_ylim(min_y - 5, max_y + 5)
-
-
 def on_scroll(event, ax):
     if event.button == 'up':
         zoom_factor = 1.1
@@ -122,60 +80,113 @@ def on_scroll(event, ax):
     ax.set_xlim(ax.get_xlim()[0] * zoom_factor, ax.get_xlim()[1] * zoom_factor)
     ax.set_ylim(ax.get_ylim()[0] * zoom_factor, ax.get_ylim()[1] * zoom_factor)
 
-    fig.canvas.draw()
+# Visualization parameters
+# In this experiment, we will run the simulation for 500 steps in each trajectory with 120 times to collect 60000 training data.
+runs  = int(input("Enter the number of simulations (runs): "))
+num_steps = int(input("Enter the number of steps per simulation (num_steps): "))
+num_landmarks = 10  # Number of landmarks
 
-# Enable interactive zoom
-fig.canvas.mpl_connect('scroll_event', lambda event: on_scroll(event, ax))
+# Define maximum x and y for landmark scatter
+max_x = 8
+max_y = 8
 
-# Initialize lists to store data for csv files
-poses_list = []  # To store robot poses
-covariances_list = [] # To store covariances
-control_inputs_list = []  # To store control inputs
+header_written = False
 
 # Main loop for simulation
-for step in range(num_steps):
+for simulation in range(runs):
+    # Initialize lists to store data for csv files
+    poses_list = []  # To store robot poses
+    covariances_list = [] # To store covariances
+    control_inputs_list = []  # To store control inputs
 
-    # Define velocities in x, y, and theta directions
-    velocity_x = np.random.uniform(-1.0, 1.0)  # Random velocity in x direction
-    velocity_y = np.random.uniform(-1.0, 1.0)  # Random velocity in y direction
-    angular_velocity = np.random.uniform(-0.1, 0.1)  # Random rotational velocity
+    initial_phi = np.random.uniform(0, 2 * np.pi)
+    angular_velocity = np.random.uniform(0.05, 0.2)
 
-    # Generate control input and process noise
-    u_k = np.array([velocity_x, velocity_y, angular_velocity])
-    v_k = np.random.multivariate_normal([0, 0, 0], Q_std_dev)  # Ensure v_k has 3 components
+    # Generate random initial values for phi and angular velocity
+    x_k = np.array([0, 0, initial_phi])
+    trajectory = [x_k.copy()]  # Initialize with a copy of the initial state
+    prev_pose = x_k.copy()
 
-    # Dynamic model
-    x_k = dynamic_model(x_k, x_k[2], u_k, v_k)
-    trajectory.append(x_k.copy())  # Append a copy of the updated state
+    # Save the current state of the random number generator
+    rng_state = np.random.get_state()
+    # Set a seed for reproducibility of landmark positions only
+    np.random.seed(42)
+    # Generate N fixed landmarks throughout the trajectory within the specified limits
+    landmarks = np.random.uniform(low=-max_x, high=max_x, size=(num_landmarks, 1))
+    landmarks = np.hstack([landmarks, np.random.uniform(low=-max_y, high=max_y, size=(num_landmarks, 1))])
+    # Restore the previous state of the random number generator
+    np.random.set_state(rng_state)
 
-    # Find all landmark within the detection radius of 3 units
-    detection_radius = 5
-    for landmark in landmarks:
-        distance = np.sqrt((landmark[0] - x_k[0])**2 + (landmark[1] - x_k[1])**2)
-        if distance <= detection_radius:
-            # If within radius, use the observation model
-            r_k_i, beta_k_i = observation_model(landmark[0], landmark[1], x_k[0], x_k[1], x_k[2])
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_title('Robot Movement Over Time with Landmarks and Distances')
+    ax.set_xlabel('X-axis')
+    ax.set_ylabel('Y-axis')
+    ax.grid(True)
 
-            # # Plot connection from robot to landmark
-            # con = ConnectionPatch(xyA=(x_k[0], x_k[1]), xyB=(landmark[0], landmark[1]),
-            #                       coordsA="data", coordsB="data", color="blue", arrowstyle="->", linewidth=2)
-            # ax.add_patch(con)
+    line, = ax.plot(trajectory[0][0], trajectory[0][1], label='Robot Trajectory', marker='o')
+    scatter_landmarks = ax.scatter(landmarks[:, 0], landmarks[:, 1], color='red', marker='*', label='Landmarks')
 
-    # Update plot data
-    line.set_data([state[0] for state in trajectory], [state[1] for state in trajectory])
+    min_x, max_x = np.min(landmarks[:, 0]), np.max(landmarks[:, 0])
+    min_y, max_y = np.min(landmarks[:, 1]), np.max(landmarks[:, 1])
+    ax.set_xlim(min_x - 5, max_x + 5)
+    ax.set_ylim(min_y - 5, max_y + 5)
+    fig.canvas.draw()
 
-    poses_list.append(x_k.copy())
-    covariances_list.append(v_k)
-    control_inputs_list.append(u_k)
+    # Enable interactive zoom
+    fig.canvas.mpl_connect('scroll_event', lambda event: on_scroll(event, ax))
 
-    # Pause for a short duration to simulate real-time
-    plt.pause(0.1)
+    for step in range(num_steps):
 
-# save csv files
-loop_closures = loop_closures_detection(poses_list)
-print(f"Found {len(loop_closures)} loop closures.")
-save_loop_closures_to_csv(loop_closures, 'loop_closures.csv')
-save_to_csv('dataset.csv', poses_list, covariances_list, control_inputs_list)
+        # Define velocities in x, y, and theta directions
+        velocity_x = np.random.uniform(-1.0, 1.0)  # Random velocity in x direction
+        velocity_y = np.random.uniform(-1.0, 1.0)  # Random velocity in y direction
+        angular_velocity = np.random.uniform(-0.1, 0.1)  # Random rotational velocity
 
-# Show final plot
-plt.show()
+        # Generate control input and process noise
+        u_k = np.array([velocity_x, velocity_y, angular_velocity])
+        v_k = np.random.multivariate_normal([0, 0, 0], Q_std_dev)  # Ensure v_k has 3 components
+
+        # Dynamic model
+        x_k = dynamic_model(x_k, x_k[2], u_k, v_k)
+        trajectory.append(x_k.copy())  # Append a copy of the updated state
+
+        # Find all landmark within the detection radius of 3 units
+        detection_radius = 5
+        for landmark in landmarks:
+            distance = np.sqrt((landmark[0] - x_k[0])**2 + (landmark[1] - x_k[1])**2)
+            if distance <= detection_radius:
+                # If within radius, use the observation model
+                r_k_i, beta_k_i = observation_model(landmark[0], landmark[1], x_k[0], x_k[1], x_k[2], R_std_dev)
+
+                # # Plot connection from robot to landmark
+                # con = ConnectionPatch(xyA=(x_k[0], x_k[1]), xyB=(landmark[0], landmark[1]),
+                #                       coordsA="data", coordsB="data", color="blue", arrowstyle="->", linewidth=2)
+                # ax.add_patch(con)
+
+        # Update plot data
+        line.set_data([state[0] for state in trajectory], [state[1] for state in trajectory])
+
+        relative_pose = np.array([x_k[0] - prev_pose[0], x_k[1] - prev_pose[1], normalize_theta(x_k[2] - prev_pose[2])])
+        
+        poses_list.append(relative_pose)
+        covariances_list.append(v_k)
+        control_inputs_list.append(u_k)
+
+        prev_pose = x_k.copy()
+
+        # Pause for a short duration to simulate real-time
+        plt.pause(0.1)
+
+    # save csv files
+    loop_closures = loop_closures_detection(poses_list)
+    print(f"Found {len(loop_closures)} loop closures.")
+    if not header_written:
+        save_loop_closures_to_csv(loop_closures, 'loop_closures.csv')
+        save_to_csv('dataset.csv', poses_list, covariances_list, control_inputs_list, write_header=True)
+        header_written = True
+    else:
+        # Append data without writing header
+        save_loop_closures_to_csv(loop_closures, 'loop_closures.csv')
+        save_to_csv('dataset.csv', poses_list, covariances_list, control_inputs_list, write_header=False)
+
+    plt.close()
