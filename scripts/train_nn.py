@@ -3,7 +3,6 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 # Load dataset from CSV file
-# Replace 'dataset.csv' with the actual path to your CSV file
 df = pd.read_csv('dataset.csv')
 
 # CSV has columns: 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_x', 'relative_y', 'relative_theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta'
