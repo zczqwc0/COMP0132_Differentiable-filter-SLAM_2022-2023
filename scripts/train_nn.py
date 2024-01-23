@@ -6,16 +6,16 @@ from tensorflow.keras import layers
 # Replace 'dataset.csv' with the actual path to your CSV file
 df = pd.read_csv('dataset.csv')
 
-# Assuming your CSV has columns: 'u_k_x', 'u_k_y', 'u_k_theta', 'X', 'Y', 'Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta'
+# CSV has columns: 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_x', 'relative_y', 'relative_theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta'
 X_train = df[['u_k_x', 'u_k_y', 'u_k_theta']].values
 y_train = df[['X', 'Y', 'Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta']].values
 
 # Define the neural network model
 model = tf.keras.Sequential([
-    layers.Input(shape=(3,)),  # Assuming input is ['u_k_x', 'u_k_y', 'u_k_theta']
+    layers.Input(shape=(3,)),  # Input is ['u_k_x', 'u_k_y', 'u_k_theta']
     layers.Dense(64, activation='relu'),
     layers.Dense(32, activation='relu'),
-    layers.Dense(6)  # Output has 6 dimensions: ['X', 'Y', 'Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta']
+    layers.Dense(6)  # Output has 6 dimensions: ['Relative X', 'Relative Y', 'Relative Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta']
 ])
 
 # Compile the model
