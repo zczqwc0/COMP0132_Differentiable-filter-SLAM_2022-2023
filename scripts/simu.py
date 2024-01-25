@@ -5,10 +5,30 @@ import csv
 
 # Dynamic model parameters
 delta_t = 1  # time interval
-Q_std_dev = np.diag([0.1, 0.1, 0.01])  # process noise covariance
+
+# Prompt user for noise type
+dynamic_noise_type = input("Enter 'gaussian' or 'uniform' for dynamic model noise: ").lower()
+if dynamic_noise_type not in ['gaussian', 'uniform']:
+    raise ValueError("Invalid noise type. Please enter 'gaussian' or 'uniform'.")
+
+Q_std_dev = np.diag([0.1, 0.1, 0.01])  # default values for Gaussian noise
+Q_uniform_range  = 0.1  # set a common standard deviation for uniform noise
 
 # Observation model parameters
-R_std_dev = np.diag([0.1, 0.01])  # observation noise covariance
+observation_noise_type = input("Enter 'gaussian' or 'uniform' for observation model noise: ").lower()
+if observation_noise_type not in ['gaussian', 'uniform']:
+    raise ValueError("Invalid noise type. Please enter 'gaussian' or 'uniform'.")
+
+R_std_dev = np.diag([0.1, 0.01])  # default values for Gaussian noise
+R_uniform_range = 0.1  # Uniform noise range for observation model
+
+ # Determine the CSV file name based on noise types
+if dynamic_noise_type == 'gaussian' and observation_noise_type == 'gaussian':
+     csv_filename = 'dataset.csv'
+elif dynamic_noise_type == 'uniform' and observation_noise_type == 'uniform':
+     csv_filename = 'testset.csv'
+else:
+     raise ValueError("Inconsistent noise types. Both should be either 'gaussian' or 'uniform'.")
 
 # Rotation matrix function
 def rotation_matrix(psi):
@@ -25,22 +45,42 @@ def normalize_theta(theta):
         theta -= 2 * np.pi
     return theta
 
-def save_to_csv(filename, poses, covariances, control_inputs, write_header):
+def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_list, covariances, write_header):
     with open(filename, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
         if write_header : 
-            writer.writerow(['Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_displacement_x', 'relative_displacement_x', 'relative_displacement_theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta'])
+            writer.writerow(['Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'])
         # Write data
-        for step, (pose, covariance, control_inputs) in enumerate(zip(poses, covariances, control_inputs)):
+        for step, (st, relative_poses_list,obs,  covariance, control_inputs) in enumerate(zip(acc_step, relative_poses_list,obs_list, covariances, control_inputs)):
+            
             # Format covariance values with 4 decimal places
-            formatted_covariance_x = f"{covariance[0]:.4f}"
-            formatted_covariance_y = f"{covariance[1]:.4f}"
-            formatted_covariance_theta = f"{covariance[2]:.4f}"
-            writer.writerow([step, pose[0], pose[1], pose[2], formatted_covariance_x, formatted_covariance_y, formatted_covariance_theta, control_inputs[0], control_inputs[1], control_inputs[2]])
+            formatted_covariance_x = f"{covariance[0][0]:.4f}"
+            formatted_covariance_y = f"{covariance[0][1]:.4f}"
+            formatted_covariance_theta = f"{covariance[0][2]:.4f}"
+            formatted_covariance_d = f"{covariance[1][0]:.4f}"
+            formatted_covariance_t = f"{covariance[1][1]:.4f}"
+
+            obs_d = f"{obs[0]:.4f}"
+            obs_t = f"{obs[1]:.4f}"
+
+            control_inputs_x = f"{control_inputs[0]:.4f}"
+            control_inputs_y = f"{control_inputs[1]:.4f}"
+            control_inputs_theta = f"{control_inputs[2]:.4f}"
+
+            relative_pose_x = f"{relative_poses_list[0]:.4f}"
+            relative_pose_y = f"{relative_poses_list[1]:.4f}"
+            relative_pose_t = f"{relative_poses_list[2]:.4f}"
+
+            writer.writerow([st, control_inputs_x, control_inputs_y, control_inputs_theta , relative_pose_x, relative_pose_y, relative_pose_t,  obs_d , obs_t , formatted_covariance_x, formatted_covariance_y, formatted_covariance_theta,formatted_covariance_d, formatted_covariance_t])
 
 # Dynamic model function
-def dynamic_model(x_k, psi_k, u_k, v_k):
+def dynamic_model(x_k, psi_k, u_k, noise_std_dev):
+    if dynamic_noise_type == 'gaussian':
+        v_k = np.random.multivariate_normal([0, 0, 0], Q_std_dev)
+    else: # uniform noise
+        v_k = np.random.uniform(-Q_uniform_range, Q_uniform_range, size=(3,))
+    
     M_psi_k = rotation_matrix(psi_k)
     a = M_psi_k @ (u_k.T + v_k.T)
     c = delta_t * a
@@ -49,20 +89,15 @@ def dynamic_model(x_k, psi_k, u_k, v_k):
     return d
 
 # Observation model function
-def observation_model(x_i, y_i, x_k, y_k, phi_k, R_std_dev):
-    r_k_i = np.sqrt((x_i - x_k)**2 + (y_i - y_k)**2)+ np.random.normal(0, R_std_dev[0])
-    beta_k_i = np.arctan2((y_i - y_k), (x_i - x_k)) - phi_k+ np.random.normal(0, R_std_dev[1])
+def observation_model(x_i, y_i, x_k, y_k, phi_k, noise_std_dev):
+    if observation_noise_type == 'gaussian':
+        w_k = np.random.multivariate_normal([0, 0], R_std_dev)
+    else:
+        w_k = np.random.uniform(-R_uniform_range, R_uniform_range, size=(2,))
+    
+    r_k_i = np.sqrt((x_i - x_k)**2 + (y_i - y_k)**2)  + w_k[0]
+    beta_k_i = np.arctan2((y_i - y_k), (x_i - x_k)) - phi_k + w_k[1]  
     return np.array([r_k_i, beta_k_i])
-
-def loop_closures_detection(poses, tolerance= 0.05):
-    loop_closures = []
-    for i in range(len(poses) - 1):
-        for j in range(i + 1, len(poses)):
-            # Check if the poses are the same within a tolerance
-            if np.all(np.abs(poses[i] - poses[j]) < tolerance):
-                loop_closure_data = (i, j, *poses[i])
-                loop_closures.append(loop_closure_data)
-    return loop_closures
 
 def save_loop_closures_to_csv(loop_closures, filename):
     with open(filename, 'w', newline='') as csvfile:
@@ -81,23 +116,33 @@ def on_scroll(event, ax):
     ax.set_ylim(ax.get_ylim()[0] * zoom_factor, ax.get_ylim()[1] * zoom_factor)
 
 # Visualization parameters
-# In this experiment, we will run the simulation for 500 steps in each trajectory with 120 times to collect 60000 training data.
 runs  = int(input("Enter the number of simulations (runs): "))
 num_steps = int(input("Enter the number of steps per simulation (num_steps): "))
-num_landmarks = 10  # Number of landmarks
+num_landmarks = 200  # Number of landmarks
 
 # Define maximum x and y for landmark scatter
-max_x = 8
-max_y = 8
+max_x = 40
+max_y = 40
 
 header_written = False
 
+acc_step = 0
+sim_step = 0 
 # Main loop for simulation
 for simulation in range(runs):
+    
+    # simulation times
+    print(sim_step) 
+    sim_step = sim_step +1 
+
     # Initialize lists to store data for csv files
-    poses_list = []  # To store robot poses
+    relative_poses_list = []  # To store robot poses
     covariances_list = [] # To store covariances
     control_inputs_list = []  # To store control inputs
+    obs_list = [] # To store observations
+    landmark_pos_list = []  # To store landmark positions
+    true_range_list = []  # To store true range measurements between landmarks and robot's pose
+    acc = [] # To store step number
 
     initial_phi = np.random.uniform(0, 2 * np.pi)
     angular_velocity = np.random.uniform(0.05, 0.2)
@@ -107,8 +152,8 @@ for simulation in range(runs):
     trajectory = [x_k.copy()]  # Initialize with a copy of the initial state
     prev_pose = x_k.copy()
 
-    # Save the current state of the random number generator
-    rng_state = np.random.get_state()
+    # Set a seed for reproducibility of fixed landmark positions only
+    rng_state = np.random.get_state() # Save the current state of the random number generator
     # Set a seed for reproducibility of landmark positions only
     np.random.seed(42)
     # Generate N fixed landmarks throughout the trajectory within the specified limits
@@ -117,6 +162,12 @@ for simulation in range(runs):
     # Restore the previous state of the random number generator
     np.random.set_state(rng_state)
 
+    # Store landmark indices and positions
+    for idx, landmark in enumerate(landmarks):
+        landmark_pos_list.append((idx, landmark))
+
+    # Uncomment the following lines to visualize animation of the robot motion and landmarks
+    ''' 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_title('Robot Movement Over Time with Landmarks and Distances')
     ax.set_xlabel('X-axis')
@@ -134,6 +185,7 @@ for simulation in range(runs):
 
     # Enable interactive zoom
     fig.canvas.mpl_connect('scroll_event', lambda event: on_scroll(event, ax))
+    '''
 
     for step in range(num_steps):
 
@@ -145,48 +197,56 @@ for simulation in range(runs):
         # Generate control input and process noise
         u_k = np.array([velocity_x, velocity_y, angular_velocity])
         v_k = np.random.multivariate_normal([0, 0, 0], Q_std_dev)  # Ensure v_k has 3 components
-
+        w_k = np.random.multivariate_normal([0, 0], R_std_dev)  # Ensure w_k has 3 components
         # Dynamic model
         x_k = dynamic_model(x_k, x_k[2], u_k, v_k)
         trajectory.append(x_k.copy())  # Append a copy of the updated state
 
         # Find all landmark within the detection radius of 3 units
         detection_radius = 5
+        land_detect = 0
+
         for landmark in landmarks:
             distance = np.sqrt((landmark[0] - x_k[0])**2 + (landmark[1] - x_k[1])**2)
             if distance <= detection_radius:
                 # If within radius, use the observation model
-                r_k_i, beta_k_i = observation_model(landmark[0], landmark[1], x_k[0], x_k[1], x_k[2], R_std_dev)
+                r_k_i, beta_k_i = observation_model(landmark[0], landmark[1], x_k[0], x_k[1], x_k[2], w_k)
+
+                land_detect = 1
 
                 # # Plot connection from robot to landmark
                 # con = ConnectionPatch(xyA=(x_k[0], x_k[1]), xyB=(landmark[0], landmark[1]),
                 #                       coordsA="data", coordsB="data", color="blue", arrowstyle="->", linewidth=2)
                 # ax.add_patch(con)
 
-        # Update plot data
-        line.set_data([state[0] for state in trajectory], [state[1] for state in trajectory])
+        # Uncomment the following lines to visualize animation of the robot motion and landmarks
+        # line.set_data([state[0] for state in trajectory], [state[1] for state in trajectory]) # Update plot data
+        # plt.pause(0.1) # Pause for a short duration to simulate real-time movement
 
         relative_pose = np.array([x_k[0] - prev_pose[0], x_k[1] - prev_pose[1], normalize_theta(x_k[2] - prev_pose[2])])
         
-        poses_list.append(relative_pose)
-        covariances_list.append(v_k)
+        if land_detect == 1 :
+            obs_list.append((r_k_i, beta_k_i))
+            covariances_list.append((v_k, w_k))
+        else :
+            obs_list.append((0, 0))
+            covariances_list.append((np.zeros_like(v_k), np.zeros_like(w_k)))
+
+            acc
+        relative_poses_list.append(relative_pose)
+        
         control_inputs_list.append(u_k)
 
         prev_pose = x_k.copy()
 
-        # Pause for a short duration to simulate real-time
-        plt.pause(0.1)
+        acc.append(acc_step)
+        acc_step  = acc_step + 1
 
     # save csv files
-    loop_closures = loop_closures_detection(poses_list)
-    print(f"Found {len(loop_closures)} loop closures.")
     if not header_written:
-        save_loop_closures_to_csv(loop_closures, 'loop_closures.csv')
-        save_to_csv('dataset.csv', poses_list, covariances_list, control_inputs_list, write_header=True)
+        save_to_csv(csv_filename, acc, control_inputs_list, relative_poses_list , obs_list, covariances_list,  write_header=True)
         header_written = True
     else:
-        # Append data without writing header
-        save_loop_closures_to_csv(loop_closures, 'loop_closures.csv')
-        save_to_csv('dataset.csv', poses_list, covariances_list, control_inputs_list, write_header=False)
+        save_to_csv(csv_filename, acc, control_inputs_list, relative_poses_list , obs_list, covariances_list,  write_header=False)
 
-    plt.close()
+    # plt.close()
