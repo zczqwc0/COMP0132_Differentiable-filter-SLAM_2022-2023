@@ -147,7 +147,6 @@ for simulation in range(runs):
 
     # Initial robot pose
     initial_phi = np.random.uniform(0, 2 * np.pi)
-    # Generate random initial values for phi and angular velocity
     x_k = np.array([0, 0, initial_phi])
     trajectory = [x_k.copy()]  # Initialize with a copy of the initial state
     prev_pose = x_k.copy()
