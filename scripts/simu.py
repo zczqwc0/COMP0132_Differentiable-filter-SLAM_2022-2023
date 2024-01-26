@@ -46,7 +46,7 @@ def normalize_theta(theta):
     return theta
 
 def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_list, covariances, write_header):
-    with open(filename, 'a', newline='') as csvfile:
+    with open(filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
         if write_header : 
@@ -116,7 +116,7 @@ def on_scroll(event, ax):
     ax.set_ylim(ax.get_ylim()[0] * zoom_factor, ax.get_ylim()[1] * zoom_factor)
 
 # Initialise parameters
-runs  = int(input("Enter the number of simulations (runs): ")) # 120 in our case
+runs  = int(input("Enter the number of simulations (runs): ")) # 120 times run for training data, and 24 times for test data
 num_steps = int(input("Enter the number of steps per simulation (num_steps): ")) # 500 steps in each trajectory
 num_landmarks = 200  # Number of landmarks
 
