@@ -45,15 +45,15 @@ def normalize_theta(theta):
         theta -= 2 * np.pi
     return theta
 
-def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_list, covariances, write_header):
+def save_to_csv(filename, acc_step, trajectory, control_inputs, relative_poses_list, obs_list, covariances, write_header):
     mode = 'w' if write_header else 'a'  # Open in write mode if writing header, else append mode
     with open(filename, mode, newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
         if write_header : 
-            writer.writerow(['Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'])
+            writer.writerow(['Step', 'pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'])
         # Write data
-        for step, (st, relative_pose, obs, covariance, control_inputs) in enumerate(zip(acc_step, relative_poses_list,obs_list, covariances, control_inputs)):
+        for step, (st, relative_pose, obs, covariance, control_inputs, traj) in enumerate(zip(acc_step, relative_poses_list, obs_list, covariances, control_inputs, trajectory)):
             
             # Format covariance values with 4 decimal places
             formatted_covariance_x = f"{covariance[0][0]:.4f}"
@@ -73,7 +73,11 @@ def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_lis
             relative_pose_y = f"{relative_pose[1]:.4f}"
             relative_pose_t = f"{relative_pose[2]:.4f}"
 
-            writer.writerow([st, control_inputs_x, control_inputs_y, control_inputs_theta , relative_pose_x, relative_pose_y, relative_pose_t,  obs_d , obs_t , formatted_covariance_x, formatted_covariance_y, formatted_covariance_theta,formatted_covariance_d, formatted_covariance_t])
+            trajectory_x = f"{traj[0]:.4f}"
+            trajectory_y = f"{traj[1]:.4f}"
+            trajectory_theta = f"{traj[2]:.4f}"
+
+            writer.writerow([st, trajectory_x, trajectory_y, trajectory_theta, control_inputs_x, control_inputs_y, control_inputs_theta , relative_pose_x, relative_pose_y, relative_pose_t,  obs_d , obs_t , formatted_covariance_x, formatted_covariance_y, formatted_covariance_theta,formatted_covariance_d, formatted_covariance_t])
 
 # Dynamic model function
 def dynamic_model(x_k, psi_k, u_k, v_k):
@@ -144,6 +148,7 @@ for simulation in range(runs):
     landmark_pos_list = []  # To store landmark positions
     true_range_list = []  # To store true range measurements between landmarks and robot's pose
     acc = [] # To store step number
+    trajectory = [] # To store robot pose
 
     # Initial robot pose
     initial_phi = np.random.uniform(0, 2 * np.pi)
@@ -243,9 +248,9 @@ for simulation in range(runs):
 
     # save csv files
     if not header_written:
-        save_to_csv(csv_filename, acc, control_inputs_list, relative_poses_list , obs_list, covariances_list,  write_header=True)
+        save_to_csv(csv_filename, acc, trajectory, control_inputs_list, relative_poses_list , obs_list, covariances_list,  write_header=True)
         header_written = True
     else:
-        save_to_csv(csv_filename, acc, control_inputs_list, relative_poses_list , obs_list, covariances_list,  write_header=False)
+        save_to_csv(csv_filename, acc, trajectory, control_inputs_list, relative_poses_list , obs_list, covariances_list,  write_header=False)
 
     # plt.close()

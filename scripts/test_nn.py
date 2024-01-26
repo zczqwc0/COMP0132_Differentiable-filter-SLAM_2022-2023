@@ -8,8 +8,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 test_df = pd.read_csv('testset.csv')
 
 # Extract features and labels for the test set
-X_test = test_df[['u_k_x', 'u_k_y', 'u_k_theta', 'Obs_dist', 'Obs_tetha']].values
-y_test_true = test_df[['relative_X', 'relative_Y', 'relative_Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']].values
+X_test = test_df[['pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta']].values
+y_test_true = test_df[['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']].values
 
 # Normalize the data
 scaler_X = StandardScaler().fit(X_test)

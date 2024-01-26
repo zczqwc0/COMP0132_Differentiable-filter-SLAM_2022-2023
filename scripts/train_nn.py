@@ -1,6 +1,7 @@
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers
+from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
@@ -9,9 +10,9 @@ import matplotlib.pyplot as plt
 # Replace 'dataset.csv' with the actual path to your CSV file
 df = pd.read_csv('dataset.csv')
 
-# CSV has columns: 'Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'
-X = df[['u_k_x', 'u_k_y', 'u_k_theta', 'Obs_dist', 'Obs_tetha']].values
-y = df[['relative_X', 'relative_Y', 'relative_Theta', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']].values
+# CSV has columns: 'Step', 'pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'
+X = df[['pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta']].values
+y = df[['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']].values
 
 # Normalize the data
 scaler_X = StandardScaler().fit(X)
@@ -22,15 +23,15 @@ X_train, X_val, y_train, y_val = train_test_split(X_scaled, y, test_size=0.2, ra
 
 # Define the neural network model
 model = tf.keras.Sequential([
-    layers.Input(shape=(5,)),  # Input is ['u_k_x', 'u_k_y', 'u_k_theta', 'Obs_dist', 'Obs_tetha']
-    layers.Dense(64, activation='relu'),
+    layers.Input(shape=(6,)),  # Input is ['pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta']
+    layers.Dense(64, activation='relu'), # Consider regularization techniques: kernel_regularizer=regularizers.l2(0.01)
     layers.Dense(64, activation='relu'),
     layers.Dense(32, activation='relu'),
-    layers.Dense(8)  # Output has 8 dimensions: ['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']
+    layers.Dense(10)  # Output has 10 dimensions: ['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']
 ])
 
 # Compile the model
-learning_rate = 0.001 # Experiment with different values (e.g. 0.01, 0.001, 0.0005)
+learning_rate = 0.01 # Experiment with different values (e.g. 0.01, 0.001, 0.0005)
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 model.compile(optimizer='adam', loss='mean_squared_error')
 
