@@ -52,7 +52,7 @@ def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_lis
         if write_header : 
             writer.writerow(['Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'])
         # Write data
-        for step, (st, relative_poses_list,obs,  covariance, control_inputs) in enumerate(zip(acc_step, relative_poses_list,obs_list, covariances, control_inputs)):
+        for step, (st, relative_pose, obs, covariance, control_inputs) in enumerate(zip(acc_step, relative_poses_list,obs_list, covariances, control_inputs)):
             
             # Format covariance values with 4 decimal places
             formatted_covariance_x = f"{covariance[0][0]:.4f}"
@@ -68,14 +68,14 @@ def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_lis
             control_inputs_y = f"{control_inputs[1]:.4f}"
             control_inputs_theta = f"{control_inputs[2]:.4f}"
 
-            relative_pose_x = f"{relative_poses_list[0]:.4f}"
-            relative_pose_y = f"{relative_poses_list[1]:.4f}"
-            relative_pose_t = f"{relative_poses_list[2]:.4f}"
+            relative_pose_x = f"{relative_pose[0]:.4f}"
+            relative_pose_y = f"{relative_pose[1]:.4f}"
+            relative_pose_t = f"{relative_pose[2]:.4f}"
 
             writer.writerow([st, control_inputs_x, control_inputs_y, control_inputs_theta , relative_pose_x, relative_pose_y, relative_pose_t,  obs_d , obs_t , formatted_covariance_x, formatted_covariance_y, formatted_covariance_theta,formatted_covariance_d, formatted_covariance_t])
 
 # Dynamic model function
-def dynamic_model(x_k, psi_k, u_k, noise_std_dev):
+def dynamic_model(x_k, psi_k, u_k, v_k):
     if dynamic_noise_type == 'gaussian':
         v_k = np.random.multivariate_normal([0, 0, 0], Q_std_dev)
     else: # uniform noise
@@ -89,7 +89,7 @@ def dynamic_model(x_k, psi_k, u_k, noise_std_dev):
     return d
 
 # Observation model function
-def observation_model(x_i, y_i, x_k, y_k, phi_k, noise_std_dev):
+def observation_model(x_i, y_i, x_k, y_k, phi_k, w_k):
     if observation_noise_type == 'gaussian':
         w_k = np.random.multivariate_normal([0, 0], R_std_dev)
     else:
@@ -115,9 +115,9 @@ def on_scroll(event, ax):
     ax.set_xlim(ax.get_xlim()[0] * zoom_factor, ax.get_xlim()[1] * zoom_factor)
     ax.set_ylim(ax.get_ylim()[0] * zoom_factor, ax.get_ylim()[1] * zoom_factor)
 
-# Visualization parameters
-runs  = int(input("Enter the number of simulations (runs): "))
-num_steps = int(input("Enter the number of steps per simulation (num_steps): "))
+# Initialise parameters
+runs  = int(input("Enter the number of simulations (runs): ")) # 120 in our case
+num_steps = int(input("Enter the number of steps per simulation (num_steps): ")) # 500 steps in each trajectory
 num_landmarks = 200  # Number of landmarks
 
 # Define maximum x and y for landmark scatter
@@ -144,9 +144,8 @@ for simulation in range(runs):
     true_range_list = []  # To store true range measurements between landmarks and robot's pose
     acc = [] # To store step number
 
+    # Initial robot pose
     initial_phi = np.random.uniform(0, 2 * np.pi)
-    angular_velocity = np.random.uniform(0.05, 0.2)
-
     # Generate random initial values for phi and angular velocity
     x_k = np.array([0, 0, initial_phi])
     trajectory = [x_k.copy()]  # Initialize with a copy of the initial state
@@ -167,7 +166,7 @@ for simulation in range(runs):
         landmark_pos_list.append((idx, landmark))
 
     # Uncomment the following lines to visualize animation of the robot motion and landmarks
-    ''' 
+    '''
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_title('Robot Movement Over Time with Landmarks and Distances')
     ax.set_xlabel('X-axis')
