@@ -46,7 +46,8 @@ def normalize_theta(theta):
     return theta
 
 def save_to_csv(filename, acc_step, control_inputs, relative_poses_list, obs_list, covariances, write_header):
-    with open(filename, 'w', newline='') as csvfile:
+    mode = 'w' if write_header else 'a'  # Open in write mode if writing header, else append mode
+    with open(filename, mode, newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
         if write_header : 
