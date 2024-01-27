@@ -67,7 +67,7 @@ class TrainingMetricsCallback(tf.keras.callbacks.Callback):
         plt.legend()
         plt.show()
 
-# Create an instance of the callback
+# Plot the loss graph
 metrics_callback = TrainingMetricsCallback()
 
 # Train the model and tune epochs and batch size
