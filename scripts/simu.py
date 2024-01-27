@@ -24,9 +24,9 @@ R_uniform_range = 0.1  # Uniform noise range for observation model
 
  # Determine the CSV file name based on noise types
 if dynamic_noise_type == 'gaussian' and observation_noise_type == 'gaussian':
-     csv_filename = 'dataset.csv'
+     csv_filename = 'Dataset/dataset.csv'
 elif dynamic_noise_type == 'uniform' and observation_noise_type == 'uniform':
-     csv_filename = 'testset.csv'
+     csv_filename = 'Dataset/testset.csv'
 else:
      raise ValueError("Inconsistent noise types. Both should be either 'gaussian' or 'uniform'.")
 
