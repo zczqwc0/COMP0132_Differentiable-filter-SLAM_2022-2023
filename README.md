@@ -21,10 +21,29 @@ pip install pandas tensorflow keras scikit-learn numpy matplotlib
 
 ## Usage
 Follow these steps to run the project:
-1. Run the simulation script `simu.py` to collect datasets:
-- 60,000 training samples with Gaussian noise distribution in the process and measurement model.
-- 12,000 non-Gaussian noise samples for the test set.
-- 12,000 Gaussian noise samples for the baseline test set.
-2. Train the model using `train_nn.py`
-3. Test the model using `test_nn.py`:
+
+1. **Run the Simulation Script:**
+   - Execute `simu.py` to collect datasets:
+     ```
+     python simu.py
+     ```
+   - This script will generate:
+     - 60,000 training samples with both dynamic and measurement Gaussian noise distribution.
+     - 12,000 non-Gaussian noise samples for the test set.
+     - 12,000 Gaussian noise samples for the baseline test set.
+
+2. **Train the Model:**
+   - Use `train_nn.py` to train the neural network model:
+     ```
+     python train_nn.py
+     ```
+   - This script reads the training dataset and trains the model accordingly, and split into training and validation sets (80% train, 20% validation)
+
+3. **Test the Model:**
+   - After training, test the model using `test_nn.py`:
+     ```
+     python test_nn.py
+     ```
+   - This script will evaluate the model's performance on the test datasets to compare the testset between Gaussian and non-Gaussian noise distribution.
+
 
