@@ -47,8 +47,6 @@ model.compile(optimizer='adam', loss='mean_squared_error')
 def learning_rate_schedule(epoch, lr):
     if epoch < 30:
         return 0.001
-    # elif epoch < 40:
-    #     return 0.001
     else:
         return 0.0005
 
