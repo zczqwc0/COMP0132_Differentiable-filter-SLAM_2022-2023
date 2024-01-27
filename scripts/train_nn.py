@@ -17,7 +17,10 @@ df = pd.read_csv('dataset.csv')
 
 # CSV has columns: 'Step', 'pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'
 X = df[['pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta']].values
-y = df[['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']].values
+y = df[['relative_X', 'relative_Y', 'relative_Theta', 
+        'Obs_dist', 'Obs_tetha', 
+        'Covariance_X', 'Covariance_Y', 'Covariance_Theta',
+        'Covariance_dis', 'Covariance_angle']].values
 
 # Normalize the data
 scaler_X = StandardScaler().fit(X)
@@ -28,11 +31,11 @@ X_train, X_val, y_train, y_val = train_test_split(X_scaled, y, test_size=0.2, ra
 
 # Define the neural network model
 model = tf.keras.Sequential([
-    layers.Input(shape=(6,)),  # Input is ['pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta']
+    layers.Input(shape=(6,)),  # Input layer has 6 dimensions
     layers.Dense(64, activation='relu'), # Consider regularization techniques: kernel_regularizer=regularizers.l2(0.01)
     layers.Dense(64, activation='relu'),
     layers.Dense(32, activation='relu'),
-    layers.Dense(10)  # Output has 10 dimensions: ['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']
+    layers.Dense(10)  # Output has 10 dimensions
 ])
 
 # Compile the model
