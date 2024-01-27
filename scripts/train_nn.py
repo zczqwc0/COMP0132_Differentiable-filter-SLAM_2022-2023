@@ -74,6 +74,6 @@ class TrainingMetricsCallback(tf.keras.callbacks.Callback):
 metrics_callback = TrainingMetricsCallback()
 
 # Train the model and tune epochs and batch size
-model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=30, batch_size=1, callbacks=[TrainingMetricsCallback()])
+model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=20, batch_size=1, callbacks=[TrainingMetricsCallback()])
 
 model.save('trained_model.keras')
