@@ -6,6 +6,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
+if tf.test.gpu_device_name():
+    print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
+else:
+    print("Please install GPU version of TF")
+
 # Load dataset from CSV file
 # Replace 'dataset.csv' with the actual path to your CSV file
 df = pd.read_csv('dataset.csv')
@@ -65,7 +70,7 @@ class TrainingMetricsCallback(tf.keras.callbacks.Callback):
 # Create an instance of the callback
 metrics_callback = TrainingMetricsCallback()
 
-# Train the model with the callback
-model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10, batch_size=1, callbacks=[TrainingMetricsCallback()])
+# Train the model and tune epochs and batch size
+model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=30, batch_size=1, callbacks=[TrainingMetricsCallback()])
 
 model.save('trained_model.keras')
