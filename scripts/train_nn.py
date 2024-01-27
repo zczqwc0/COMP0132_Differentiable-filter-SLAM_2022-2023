@@ -39,9 +39,18 @@ model = tf.keras.Sequential([
 ])
 
 # Compile the model
-learning_rate = 0.01 # Experiment with different values (e.g. 0.01, 0.001, 0.0005)
+learning_rate = 0.001 # Experiment with different values (e.g. 0.1, 0.01, 0.001, 0.0005)
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 model.compile(optimizer='adam', loss='mean_squared_error')
+
+# Define the learning rate schedule
+def learning_rate_schedule(epoch, lr):
+    if epoch < 30:
+        return 0.001
+    # elif epoch < 40:
+    #     return 0.001
+    else:
+        return 0.0005
 
 class TrainingMetricsCallback(tf.keras.callbacks.Callback):
     def __init__(self):
@@ -70,10 +79,13 @@ class TrainingMetricsCallback(tf.keras.callbacks.Callback):
         plt.legend()
         plt.show()
 
+# Adjust the learning rate during training
+lr_scheduler = tf.keras.callbacks.LearningRateScheduler(learning_rate_schedule)
+
 # Plot the loss graph
 metrics_callback = TrainingMetricsCallback()
 
 # Train the model and tune epochs and batch size
-model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=20, batch_size=1, callbacks=[TrainingMetricsCallback()])
+model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=50, batch_size=1, callbacks=[metrics_callback, lr_scheduler])
 
 model.save('trained_model.keras')
