@@ -1,7 +1,6 @@
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers
-from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
@@ -12,15 +11,15 @@ else:
     print("Please install GPU version of TF")
 
 # Load dataset from CSV file
-# Replace 'dataset.csv' with the actual path to your CSV file
-df = pd.read_csv('Dataset/dataset.csv')
+df = pd.read_csv('./Dataset/dataset.csv')
 
-# CSV has columns: 'Step', 'pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'
-X = df[['pose_x', 'pose_y', 'pose_theta', 'u_k_x', 'u_k_y', 'u_k_theta']].values
+# CSV has columns: 'Step', 'u_k_x', 'u_k_y', 'u_k_theta', 'relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle'
+X = df[['u_k_x', 'u_k_y', 'u_k_theta','x','y','theta']].values
 y = df[['relative_X', 'relative_Y', 'relative_Theta', 
         'Obs_dist', 'Obs_tetha', 
         'Covariance_X', 'Covariance_Y', 'Covariance_Theta',
         'Covariance_dis', 'Covariance_angle']].values
+
 
 # Normalize the data
 scaler_X = StandardScaler().fit(X)
@@ -31,12 +30,13 @@ X_train, X_val, y_train, y_val = train_test_split(X_scaled, y, test_size=0.2, ra
 
 # Define the neural network model
 model = tf.keras.Sequential([
-    layers.Input(shape=(6,)),  # Input layer has 6 dimensions
-    layers.Dense(64, activation='relu'), # Consider regularization techniques: kernel_regularizer=regularizers.l2(0.01)
+    layers.Input(shape=(6,)),  # Assuming input is ['u_k_x', 'u_k_y', 'u_k_theta']
+    layers.Dense(64, activation='relu'),
     layers.Dense(64, activation='relu'),
     layers.Dense(32, activation='relu'),
-    layers.Dense(10)  # Output has 10 dimensions
+    layers.Dense(10)  # Output has 10 dimensions: ['relative_X', 'relative_Y', 'relative_Theta', 'Obs_dist', 'Obs_tetha', 'Covariance_X', 'Covariance_Y', 'Covariance_Theta','Covariance_dis', 'Covariance_angle']
 ])
+
 
 # Compile the model
 learning_rate = 0.001 # Experiment with different values (e.g. 0.1, 0.01, 0.001, 0.0005)
@@ -44,11 +44,13 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Define the learning rate schedule
-def learning_rate_schedule(epoch, lr):
-    if epoch < 30:
+def learning_rate_schedule(epoch):
+    if epoch < 20:
         return 0.001
-    else:
+    elif epoch < 40:
         return 0.0005
+    else:
+        return 0.0001
 
 class TrainingMetricsCallback(tf.keras.callbacks.Callback):
     def __init__(self):
@@ -79,11 +81,12 @@ class TrainingMetricsCallback(tf.keras.callbacks.Callback):
 
 # Adjust the learning rate during training
 lr_scheduler = tf.keras.callbacks.LearningRateScheduler(learning_rate_schedule)
-
+ 
 # Plot the loss graph
 metrics_callback = TrainingMetricsCallback()
 
-# Train the model and tune epochs and batch size
-model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=50, batch_size=1, callbacks=[metrics_callback, lr_scheduler])
+# Train the model with the callback
+model.fit(X_train, y_train,  validation_data=(X_val, y_val),
+          epochs=60, batch_size=32, callbacks=[metrics_callback, lr_scheduler])
 
 model.save('trained_model.keras')
