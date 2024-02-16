@@ -19,6 +19,11 @@ source venv/bin/activate # Linux
 pip install pandas tensorflow keras scikit-learn numpy matplotlib
 ```
 
+Additionally, install GTSAM, a library for graph-based nonlinear least squares optimization, which is crucial for this project:
+```bash
+pip install gtsam
+```
+
 ## Usage
 Follow these steps to run the project:
 
